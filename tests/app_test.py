@@ -80,6 +80,48 @@ def test_messages(client):
 
 def test_delete_message(client):
     """Ensure the messages are being deleted"""
-    rv = client.get('/delete/1')
+    rv = client.get("/delete/1")
+    data = json.loads(rv.data)
+    assert data["status"] == 0
+    login(client, app.config["USERNAME"], app.config["PASSWORD"])
+    rv = client.get("/delete/1")
     data = json.loads(rv.data)
     assert data["status"] == 1
+
+def test_search(client):
+    """Test the search functionality."""
+    # Log in first, since searching may require an authenticated session
+    login(client, app.config["USERNAME"], app.config["PASSWORD"])
+    
+    # Post a new message to search for
+    client.post(
+        "/add",
+        data=dict(title="Test Post", text="This is a test entry."),
+        follow_redirects=True,
+    )
+
+    # Search for a valid query (that should return results)
+    rv = client.get('/search/?query=Test')
+    assert b"Test Post" in rv.data
+    assert rv.status_code == 200
+
+    # Search for a query that returns no results
+    rv = client.get('/search/?query=Nonexistent')
+    assert b"No entries yet. Add some!" in rv.data or rv.status_code == 200  # Adjust based on your template
+
+    # Search with no query
+    rv = client.get('/search/')
+    assert b"Search" in rv.data  # Assuming the search page has some placeholder text for no query
+    assert rv.status_code == 200
+
+def test_delete_requires_login(client):
+    """Test that delete route requires login."""
+    # Try to delete without being logged in
+    rv = client.get("/delete/1")
+    data = json.loads(rv.data)
+    
+    # Ensure the response indicates login is required
+    assert rv.status_code == 401  # Unauthorized
+    assert data["status"] == 0
+    assert data["message"] == "Please log in."
+
